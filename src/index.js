@@ -1,3 +1,6 @@
+
+
+
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -9,7 +12,7 @@ const DocumentationService = require('./services/DocumentationService');
 const RepositoryService = require('./services/RepositoryService');
 const CodeAnalysisController = require('./controllers/CodeAnalysisController.js');
 const codeAnalysisRoutes = require('./routes/codeAnalysis');
-
+   
 // Validate environment variables
 const requiredEnvVars = ['GEMINI_API_KEY', 'PORT'];
 for (const envVar of requiredEnvVars) {
@@ -84,3 +87,6 @@ process.on('SIGINT', async () => {
 });
 
 module.exports = app;
+
+
+
