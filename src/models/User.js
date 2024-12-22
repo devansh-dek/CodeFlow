@@ -10,6 +10,10 @@ const userSchema = new mongoose.Schema({
         type : String, 
         required : true
     },
+    repositories: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Repository'
+    }]
 
 });
 
@@ -21,6 +25,6 @@ userSchema.pre('save',async function(next){
 })
 
 userSchema.methods.comparePassoword = async function(userPassword){
-    return bcrypt.compate(userPassword,this.password);
+    return bcrypt.compare(userPassword,this.password);
 }
-module.exports = mongoose.model('User','userSchema');
+module.exports = mongoose.model('User',userSchema);

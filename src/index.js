@@ -1,10 +1,7 @@
-
-
-
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-
+const mongoose = require('mongoose');
 // Import services and repositories
 const VectorStoreRepository = require('./repositories/VectorStoreRepository');
 const CodeChunkerService = require('./services/CodeChunkerService');
@@ -12,16 +9,24 @@ const DocumentationService = require('./services/DocumentationService');
 const RepositoryService = require('./services/RepositoryService');
 const CodeAnalysisController = require('./controllers/CodeAnalysisController.js');
 const codeAnalysisRoutes = require('./routes/codeAnalysis');
-   
+const authRoutes = require('./routes/auth.js');
+const authMiddleware = require('./middleware/auth.js')
+
 // Validate environment variables
-const requiredEnvVars = ['GEMINI_API_KEY', 'PORT'];
+const requiredEnvVars = ['GEMINI_API_KEY', 'PORT', 'MONGODB_URI', 'JWT_SECRET'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
         console.error(`Missing required environment variable: ${envVar}`);
         process.exit(1);
     }
 }
-
+// using mongoose instead
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Connected to MongoDB'))
+    .catch(err => {
+        console.error('MongoDB connection error:', err);
+        process.exit(1);
+    });
 // Initialize application
 const app = express();
 app.use(express.json({ limit: '50mb' }));
@@ -42,7 +47,9 @@ const codeAnalysisController = new CodeAnalysisController(
 );
 
 // Setup routes
-app.use('/api', codeAnalysisRoutes(codeAnalysisController));
+app.use('/api/auth', authRoutes);
+
+app.use('/api', authMiddleware,codeAnalysisRoutes(codeAnalysisController));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
