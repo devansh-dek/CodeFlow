@@ -1,9 +1,9 @@
-const AuthService = require('../services/authService.js');
+const AuthService = require('../services/authService');
 const authService = new AuthService();
 
 module.exports = async (req, res, next) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
+        const token = req.cookies[authService.COOKIE_NAME];
         if (!token) {
             return res.status(401).json({ error: 'Authentication required' });
         }
@@ -12,6 +12,8 @@ module.exports = async (req, res, next) => {
         req.user = decoded;
         next();
     } catch (error) {
-        res.status(401).json({ error: 'Invalid token' });
+        // Clear invalid cookie if present
+        authService.clearAuthCookie(res);
+        res.status(401).json({ error: 'Invalid or expired session' });
     }
 };

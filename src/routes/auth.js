@@ -1,26 +1,32 @@
-const express = require('express')
+const express = require('express');
 const router = express.Router();
-const AuthService = require('../services/authService')
+const AuthService = require('../services/authService');
 const authService = new AuthService();
 
-router.post('/register',async(req,res)=>{
-    try{
-        // inRegister Post 
-        console.log("IN da register")
+router.post('/register', async (req, res) => {
+    try {
         const { email, password } = req.body;
         const token = await authService.registerUser(email, password);
-        res.json({ token });    }
-    catch(error){
-        res.status(400).json({error : error.message});
+        authService.setAuthCookie(res, token);
+        res.json({ message: 'Registration successful' });
+    } catch (error) {
+        res.status(400).json({ error: error.message });
     }
-})
-router.post('/login',async(req,res)=>{
+});
+
+router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
         const token = await authService.loginUser(email, password);
-        res.json({ token });
+        authService.setAuthCookie(res, token);
+        res.json({ message: 'Login successful' });
     } catch (error) {
         res.status(401).json({ error: error.message });
     }
-})
-module.exports = router
+});
+
+router.post('/logout', (req, res) => {
+    authService.clearAuthCookie(res);
+    res.json({ message: 'Logout successful' });
+});
+module.exports = router;

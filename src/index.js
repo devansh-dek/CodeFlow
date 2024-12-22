@@ -1,3 +1,5 @@
+//Agnish bruh came here :)
+
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
@@ -11,6 +13,9 @@ const CodeAnalysisController = require('./controllers/CodeAnalysisController.js'
 const codeAnalysisRoutes = require('./routes/codeAnalysis');
 const authRoutes = require('./routes/auth.js');
 const authMiddleware = require('./middleware/auth.js')
+const cookieParser = require('cookie-parser');
+const cors = require('cors');
+const fs = require('fs/promises');
 
 // Validate environment variables
 const requiredEnvVars = ['GEMINI_API_KEY', 'PORT', 'MONGODB_URI', 'JWT_SECRET'];
@@ -27,9 +32,15 @@ mongoose.connect(process.env.MONGODB_URI)
         console.error('MongoDB connection error:', err);
         process.exit(1);
     });
-// Initialize application
 const app = express();
-app.use(express.json({ limit: '50mb' }));
+// app.use(express.json({ limit: '50mb' }));
+app.use(cookieParser()); 
+
+app.use(cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    credentials: true
+}));
+
 
 // Initialize services and repositories
 const TEMP_DIR = path.join(__dirname, 'temp');
