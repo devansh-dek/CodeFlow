@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Repository = require('../models/Repository');
 
 class CodeAnalysisController {
     constructor(
@@ -16,15 +17,25 @@ class CodeAnalysisController {
     async processRepository(req, res) {
         let repoPath = null;
         try {
-            const { repoUrl } = req.body;
+            const { repoUrl, title } = req.body;
+            const userId = req.user.userId;
             
-            if (!repoUrl) {
-                return res.status(400).json({ error: 'Repository URL is required' });
+            if (!repoUrl || !title) {
+                return res.status(400).json({ error: 'Repository URL and title are required' });
             }
 
-            if (!repoUrl.match(/^https?:\/\/[^\s/$.?#].[^\s]*$/i)) {
-                return res.status(400).json({ error: 'Invalid repository URL' });
+            // Check if repository with this title already exists for the user
+            const existingRepo = await Repository.findOne({ user: userId, title });
+            if (existingRepo) {
+                return res.status(400).json({ error: 'Repository with this title already exists' });
             }
+
+            const repository = new Repository({
+                title,
+                repoUrl,
+                user: userId
+            });
+            await repository.save();
 
             repoPath = await this.repositoryService.cloneRepository(repoUrl);
             const files = await this.repositoryService.getAllFiles(repoPath);
@@ -35,11 +46,12 @@ class CodeAnalysisController {
                 allChunks.push(...chunks);
             }
 
-            await this.vectorStoreRepository.addChunks(allChunks);
+            await this.vectorStoreRepository.addChunks(allChunks, repository._id);
 
             res.json({ 
                 status: 'success', 
                 message: 'Repository processed successfully',
+                repositoryId: repository._id,
                 totalFiles: files.length,
                 totalChunks: allChunks.length
             });
@@ -53,9 +65,8 @@ class CodeAnalysisController {
                 await this.repositoryService.cleanup(repoPath);
             }
         }
-    }
-
-    async generateDocumentation(req, res) {
+    }  
+      async generateDocumentation(req, res) {
         let repoPath = null;
         try {
             console.log("CAME HERE ")
@@ -137,6 +148,21 @@ class CodeAnalysisController {
                 error: 'Error answering question', 
                 message: error.message 
             });
+        }
+    }
+    async getUserRepositories(req,res){
+        try{
+            console.log("CAMEE HERE ");
+            const repositories = await Repository.find({user : req.user.userId})
+            .select('title repoUrl createdAt');
+            res.json({repositories});
+        }
+        catch(error){
+            console.log("Error in get user controller",error);
+            res.status(500).json({
+                error : "Error fetching Repos",
+                message : error.message
+            })
         }
     }
 }
