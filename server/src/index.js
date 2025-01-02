@@ -21,6 +21,7 @@ const fs = require('fs/promises');
 const requiredEnvVars = ['GEMINI_API_KEY', 'PORT', 'MONGODB_URI', 'JWT_SECRET'];
 for (const envVar of requiredEnvVars) {
     if (!process.env[envVar]) {
+        console.log("entire env is ",process.env)
         console.error(`Missing required environment variable: ${envVar}`);
         process.exit(1);
     }
@@ -33,7 +34,7 @@ mongoose.connect(process.env.MONGODB_URI)
         process.exit(1);
     });
 const app = express();
-// app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '500mb' }));
 app.use(cookieParser()); 
 
 app.use(cors({

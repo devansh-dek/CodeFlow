@@ -2,12 +2,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Repository = require('../models/Repository');
 
 class CodeAnalysisController {
-    constructor(
-        repositoryService,
-        chunkerService,
-        vectorStoreRepository,
-        documentationService
-    ) {
+    constructor(repositoryService, chunkerService, vectorStoreRepository, documentationService) {
         this.repositoryService = repositoryService;
         this.chunkerService = chunkerService;
         this.vectorStoreRepository = vectorStoreRepository;
@@ -24,18 +19,16 @@ class CodeAnalysisController {
                 return res.status(400).json({ error: 'Repository URL and title are required' });
             }
 
-            // Check if repository with this title already exists for the user
-            const existingRepo = await Repository.findOne({ user: userId, title });
-            if (existingRepo) {
+            let repository = await Repository.findOne({ user: userId, title });
+            if (repository) {
                 return res.status(400).json({ error: 'Repository with this title already exists' });
             }
 
-            const repository = new Repository({
+            repository = new Repository({
                 title,
                 repoUrl,
                 user: userId
             });
-            await repository.save();
 
             repoPath = await this.repositoryService.cloneRepository(repoUrl);
             const files = await this.repositoryService.getAllFiles(repoPath);
@@ -46,12 +39,16 @@ class CodeAnalysisController {
                 allChunks.push(...chunks);
             }
 
+            const documentation = await this.documentationService.generateDocumentation(allChunks);
+            repository.documentation = documentation;
+            await repository.save();
+            
             await this.vectorStoreRepository.addChunks(allChunks, repository._id);
 
             res.json({ 
                 status: 'success', 
-                message: 'Repository processed successfully',
                 repositoryId: repository._id,
+                documentation,
                 totalFiles: files.length,
                 totalChunks: allChunks.length
             });
@@ -65,65 +62,23 @@ class CodeAnalysisController {
                 await this.repositoryService.cleanup(repoPath);
             }
         }
-    }  
-      async generateDocumentation(req, res) {
-        let repoPath = null;
-        try {
-            console.log("CAME HERE ")
-            const { repoUrl } = req.body;
-            
-            if (!repoUrl) {
-                return res.status(400).json({ error: 'Repository URL is required' });
-            }
-
-            if (!repoUrl.match(/^https?:\/\/[^\s/$.?#].[^\s]*$/i)) {
-                return res.status(400).json({ error: 'Invalid repository URL' });
-            }
-
-            repoPath = await this.repositoryService.cloneRepository(repoUrl);
-            const files = await this.repositoryService.getAllFiles(repoPath);
-            const allChunks = [];
-            console.log("CAME HERE 2")
-            for (const file of files) {
-                const chunks = await this.chunkerService.chunkCode(file.path, file.content);
-                allChunks.push(...chunks);
-            }
-            console.log("CAME HERE 3")
-            const documentation = await this.documentationService.generateDocumentation(allChunks);
-            await this.vectorStoreRepository.addChunks(allChunks);
-
-            res.json({ 
-                status: 'success',
-                documentation,
-                totalFiles: files.length,
-                totalChunks: allChunks.length
-            });
-        } catch (error) {
-            console.log("FINALLY error ",error)
-            res.status(500).json({ 
-                error: 'Error generating documentation', 
-                message: error.message 
-            });
-        } finally {
-            if (repoPath) {
-                await this.repositoryService.cleanup(repoPath);
-            }
-        }
     }
 
     async answerQuestion(req, res) {
         try {
-            const { question } = req.body;
+            const { question, repositoryTitle } = req.body;
+            const userId = req.user.userId;
             
-            if (!question) {
-                return res.status(400).json({ error: 'Question is required' });
+            if (!question || !repositoryTitle) {
+                return res.status(400).json({ error: 'Question and repository title are required' });
             }
 
-            if (question.length > 1000) {
-                return res.status(400).json({ error: 'Question is too long (max 1000 characters)' });
+            const repository = await Repository.findOne({ user: userId, title: repositoryTitle });
+            if (!repository) {
+                return res.status(404).json({ error: 'Repository not found' });
             }
 
-            const relevantChunks = await this.vectorStoreRepository.findSimilarChunks(question);
+            const relevantChunks = await this.vectorStoreRepository.findSimilarChunks(question, repository._id);
             const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
                 .getGenerativeModel({ model: 'gemini-pro' });
 
@@ -150,21 +105,26 @@ class CodeAnalysisController {
             });
         }
     }
-    async getUserRepositories(req,res){
-        try{
-            console.log("CAMEE HERE ");
-            const repositories = await Repository.find({user : req.user.userId})
-            .select('title repoUrl createdAt');
-            res.json({repositories});
-        }
-        catch(error){
-            console.log("Error in get user controller",error);
+
+    async getRepositoryDocs(req, res) {
+        try {
+            const { repositoryTitle } = req.params;
+            const userId = req.user.userId;
+
+            const repository = await Repository.findOne({ user: userId, title: repositoryTitle });
+            if (!repository) {
+                return res.status(404).json({ error: 'Repository not found' });
+            }
+
+            res.json({
+                documentation: repository.documentation
+            });
+        } catch (error) {
             res.status(500).json({
-                error : "Error fetching Repos",
-                message : error.message
-            })
+                error: 'Error fetching documentation',
+                message: error.message
+            });
         }
     }
 }
-
 module.exports = CodeAnalysisController

@@ -1,12 +1,8 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Repository = require('../models/Repository'); // Add this import
 
 class VectorStoreRepository {
     constructor() {
-        // this.documents = [];
-        // this.embeddings = [];
-        // this.metadatas = [];
-        // this.embeddingModel = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-        //     .getGenerativeModel({ model: 'embedding-001' });
         this.embeddingModel = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
         .getGenerativeModel({ model: 'embedding-001' });
     }
@@ -45,10 +41,10 @@ class VectorStoreRepository {
                 }
             }
         } catch (error) {
+            console.error('Error in addChunks:', error);
             throw new Error(`Failed to add chunks to vector store: ${error.message}`);
         }
     }
-
 
     async findSimilarChunks(question, repositoryId, limit = 5) {
         try {
@@ -68,15 +64,18 @@ class VectorStoreRepository {
                 .sort((a, b) => b.similarity - a.similarity)
                 .slice(0, limit);
         } catch (error) {
+            console.error('Error in findSimilarChunks:', error);
             throw new Error(`Failed to find similar chunks: ${error.message}`);
         }
     }
+
     async generateEmbedding(text) {
         try {
             const truncatedText = text.substring(0, 5000);
             const result = await this.embeddingModel.embedContent(truncatedText);
             return result.embedding.values;
         } catch (error) {
+            console.error('Error in generateEmbedding:', error);
             throw new Error(`Failed to generate embedding: ${error.message}`);
         }
     }
@@ -87,15 +86,6 @@ class VectorStoreRepository {
         const magnitude2 = Math.sqrt(vector2.reduce((sum, val) => sum + val * val, 0));
         return dotProduct / (magnitude1 * magnitude2);
     }
-
-    getTopKIndices(arr, k) {
-        return arr
-            .map((value, index) => ({ value, index }))
-            .sort((a, b) => b.value - a.value)
-            .slice(0, k)
-            .map(item => item.index);
-    }
 }
 
-module.exports = 
-    VectorStoreRepository
+module.exports = VectorStoreRepository;

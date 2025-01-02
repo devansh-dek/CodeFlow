@@ -5,6 +5,7 @@ const authService = new AuthService();
 
 router.post('/register', async (req, res) => {
     try {
+        console.log("req body is ",req.body);
         const { email, password } = req.body;
         const token = await authService.registerUser(email, password);
         authService.setAuthCookie(res, token);

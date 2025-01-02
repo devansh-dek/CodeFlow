@@ -11,6 +11,7 @@ class DocumentationService {
 
     async generateDocumentation(chunks) {
         try {
+            console.log("Entered generateDoc func");
             const overview = await this.generateOverview(chunks);
             const architecture = await this.generateArchitectureDiagram(chunks);
             const components = await this.generateComponentDocs(chunks);
@@ -20,9 +21,11 @@ class DocumentationService {
             throw new Error(`Failed to generate documentation: ${error.message}`);
         }
     }
-
+   
     async generateOverview(chunks) {
-        const prompt = `Analyze these code chunks and provide a comprehensive overview of the project:
+        try{
+            console.log("chuks are ",chunks);
+            const prompt = `Analyze these code chunks and provide a comprehensive overview of the project:
             ${this.formatChunksForPrompt(chunks)}
             
             Include:
@@ -32,7 +35,12 @@ class DocumentationService {
             4. Key components and their responsibilities`;
 
         const result = await this.model.generateContent(prompt);
+        console.log("result is ",result);
         return result.response.text();
+    }
+        catch(error){
+            throw new Error(`Error at genoveriew func: ${error.message} `)
+        }
     }
 
     async generateArchitectureDiagram(chunks) {
