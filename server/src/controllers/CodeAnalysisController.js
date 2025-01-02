@@ -53,6 +53,7 @@ class CodeAnalysisController {
                 totalChunks: allChunks.length
             });
         } catch (error) {
+            console.log("erroris ",error);
             res.status(500).json({ 
                 error: 'Error processing repository', 
                 message: error.message 

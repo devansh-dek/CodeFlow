@@ -18,9 +18,9 @@ const repositorySchema = new mongoose.Schema({
         overview: String,
         architecture : String,
         components: [{
-            name : String,
-            type : String,
-            documentation : String
+            name: { type: String },
+            type: { type: String },
+            documentation: { type: String }
         }]
     },
     vectorEmbeddings: [{
