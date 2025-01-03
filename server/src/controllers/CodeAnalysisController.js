@@ -1,5 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Repository = require('../models/Repository');
+const Conversation = require('../models/Conversation');
 
 class CodeAnalysisController {
     constructor(repositoryService, chunkerService, vectorStoreRepository, documentationService) {
@@ -7,6 +8,23 @@ class CodeAnalysisController {
         this.chunkerService = chunkerService;
         this.vectorStoreRepository = vectorStoreRepository;
         this.documentationService = documentationService;
+        this.model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+        .getGenerativeModel({model : 'gemini-pro'});
+    }
+    constructPrompt(question, context) {
+        return `
+        Question: "${question}"
+
+        Relevant code context:
+        ${context.codeContext.map(chunk => `
+            File: ${chunk.metadata.location}
+            ${chunk.content}
+        `).join('\n')}
+
+        Relevant conversation history:
+        ${context.conversationContext.map(conv => conv.content).join('\n')}
+
+        Please provide a focused answer based on the above context.`;
     }
 
     async processRepository(req, res) {
@@ -67,7 +85,7 @@ class CodeAnalysisController {
 
     async answerQuestion(req, res) {
         try {
-            const { question, repositoryTitle } = req.body;
+            const { question, repositoryTitle,conversationId } = req.body;
             const userId = req.user.userId;
             
             if (!question || !repositoryTitle) {
@@ -78,28 +96,33 @@ class CodeAnalysisController {
             if (!repository) {
                 return res.status(404).json({ error: 'Repository not found' });
             }
+            let conversation = conversationId ? await Conversation.findById(conversationId) : new Conversation({repositoryId : repository._id, userId : userId , messages :[]});
+            const context = await this.vectorStoreRepository.findRelevantContext(question,repository._id,conversation._id);
+            const prompt  = this.constructPrompt(question,context);
+            console.log(prompt , "is our promt");
+            const result = await this.model.generateContent(prompt);
+            const answer = result.response.text();
+            conversation.messages.push(
+                {role:'user', content : question},
+                {role : 'assistant', content : answer}
+            )
+            await conversation.save();
+            await this.vectorStoreRepository.addConversationEmbedding(
+                conversation,
+                repository._id
+            );
 
-            const relevantChunks = await this.vectorStoreRepository.findSimilarChunks(question, repository._id);
-            const model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-                .getGenerativeModel({ model: 'gemini-pro' });
-
-            const prompt = `
-            Based on the following code sections, please answer this question: "${question}"
-
-            Relevant code sections:
-            ${relevantChunks.map(chunk => `
-            File: ${chunk.metadata.location}
-            Type: ${chunk.metadata.type}
-            Name: ${chunk.metadata.name}
+            res.json({
+                answer,
+                conversationId: conversation._id,
+                relevantContext: {
+                    codeSnippets: context.codeContext.length,
+                    conversations: context.conversationContext.length
+                }
+            });  
             
-            Code:
-            ${chunk.content}
-            `).join('\n\n')}
-            `;
-
-            const result = await model.generateContent(prompt);
-            res.json({ answer: result.response.text() });
         } catch (error) {
+            console.log("error is ",error);
             res.status(500).json({ 
                 error: 'Error answering question', 
                 message: error.message 
@@ -114,7 +137,7 @@ class CodeAnalysisController {
 
             const repository = await Repository.findOne({ user: userId, title: repositoryTitle });
             if (!repository) {
-                return res.status(404).json({ error: 'Repository not found' });
+                return res.status(404).json({ error: 'Repository not found' });  
             }
 
             res.json({

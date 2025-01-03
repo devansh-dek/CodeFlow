@@ -4,21 +4,46 @@ const Repository = require('../models/Repository'); // Add this import
 class VectorStoreRepository {
     constructor() {
         this.embeddingModel = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-        .getGenerativeModel({ model: 'embedding-001' });
-        this.SIMILARITY_THRESHOLD = 0.7;
+            .getGenerativeModel({ model: 'embedding-001' });
+        this.SIMILARITY_THRESHOLD = 0.7; // Configurable threshold
     }
-    async addConversationEmbedding(conversation,repositoryId){
+
+    async addConversationEmbedding(conversation, repositoryId) {
+        // Create embeddings for conversation messages
         const messageContent = `${conversation.messages[conversation.messages.length - 2].content} ${conversation.messages[conversation.messages.length - 1].content}`;
         const embedding = await this.generateEmbedding(messageContent);
-        const repo = await Repository.findById(repositoryId);
+
+        const repository = await Repository.findById(repositoryId);
         repository.conversationEmbeddings.push({
-            conversationId : conversation._id,
+            conversationId: conversation._id,
             messageContent,
             embedding,
             timestamp: new Date()
-        })
+        });
 
+        await repository.save();
     }
+
+    async findRelevantContext(question, repositoryId, currentConversationId = null) {
+        const repository = await Repository.findById(repositoryId);
+        const questionEmbedding = await this.generateEmbedding(question);
+
+        // Find relevant code chunks
+        const relevantCode = await this.findRelevantCodeChunks(questionEmbedding, repository);
+
+        // Find relevant conversation history
+        const relevantConversations = await this.findRelevantConversations(
+            questionEmbedding, 
+            repository,
+            currentConversationId
+        );
+
+        return {
+            codeContext: relevantCode,
+            conversationContext: relevantConversations
+        };
+    }
+
     async findRelevantCodeChunks(questionEmbedding, repository) {
         const similarities = repository.vectorEmbeddings.map(vec => ({
             similarity: this.cosineSimilarity(questionEmbedding, vec.embedding),
@@ -31,24 +56,7 @@ class VectorStoreRepository {
             .sort((a, b) => b.similarity - a.similarity)
             .slice(0, 3); // Only most relevant chunks
     }
-    async findRelevantContext(question,repositoryId,currentConversationId = null){
-        try{    
-            const repository = await Repository.findById(repositoryId);
-            const questionEmbedding = await this.generateEmbedding(question);
-            const relevantCode = await this.findRelevantCodeChunks(questionEmbedding,repository);
-            const relevantConversations = await this.findRelevantConversations(questionEmbedding,repository,currentConversationId);
-            return {
-                codeContext : relevantCode,
-                conversationContext : relevantConversations
-            }
 
-        }
-        catch(error){
-            console.log("error in findRElevant COntext",error);
-
-        }
-
-    }
     async findRelevantConversations(questionEmbedding, repository, currentConversationId) {
         if (!repository.conversationEmbeddings?.length) return [];
 
@@ -65,7 +73,7 @@ class VectorStoreRepository {
                 item.conversationId.toString() !== currentConversationId
             )
             .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, 2);
+            .slice(0, 2); // Only most relevant conversations
     }
 
     async addChunks(chunks, repositoryId) {

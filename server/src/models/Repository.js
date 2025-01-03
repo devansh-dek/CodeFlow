@@ -14,9 +14,9 @@ const repositorySchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    documentation : {
+    documentation: {
         overview: String,
-        architecture : String,
+        architecture: String,
         components: [{
             name: { type: String },
             type: { type: String },
@@ -31,6 +31,15 @@ const repositorySchema = new mongoose.Schema({
             name: { type: String },
             location: { type: String }
         }
+    }],
+    conversationEmbeddings: [{
+        conversationId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Conversation'
+        },
+        messageContent: String,
+        embedding: [Number],
+        timestamp: Date
     }],
     createdAt: {
         type: Date,
