@@ -28,7 +28,6 @@ class VectorStoreRepository {
         const repository = await Repository.findById(repositoryId);
         const questionEmbedding = await this.generateEmbedding(question);
 
-        // Find relevant code chunks
         const relevantCode = await this.findRelevantCodeChunks(questionEmbedding, repository);
 
         // Find relevant conversation history

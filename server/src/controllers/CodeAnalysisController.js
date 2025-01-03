@@ -11,20 +11,36 @@ class CodeAnalysisController {
         this.model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
         .getGenerativeModel({model : 'gemini-pro'});
     }
-    constructPrompt(question, context) {
-        return `
-        Question: "${question}"
+    
+    constructPrompt(question, context, repository) {
+        const systemContext = repository.documentation?.overview 
+            ? `Project Overview:\n${repository.documentation.overview}\n`
+            : 'You are analyzing a software project. ';
 
-        Relevant code context:
-        ${context.codeContext.map(chunk => `
-            File: ${chunk.metadata.location}
-            ${chunk.content}
-        `).join('\n')}
+        const codeContext = context.codeContext.length > 0 
+            ? `\n=== RELEVANT CODE SECTIONS ===\n${context.codeContext.map(chunk => `
+                === File: ${chunk.metadata.location} ===
+                ${chunk.content}
+            `).join('\n\n')}`
+            : '\nNo specific code sections were found highly relevant to this question.';
 
-        Relevant conversation history:
-        ${context.conversationContext.map(conv => conv.content).join('\n')}
+        const conversationContext = context.conversationContext.length > 0
+            ? `\n=== RELEVANT PAST CONVERSATIONS ===\n${context.conversationContext.map(conv => conv.content).join('\n\n')}`
+            : '';
 
-        Please provide a focused answer based on the above context.`;
+        const instructions = `
+Please analyze the above context and provide a focused answer to the following question. 
+If the question cannot be answered from the provided context, explicitly state what information is missing. 
+Base your answer only on the information available in the context and visible code patterns.
+        
+Question: "${question}"
+
+Remember:
+- Only make statements that are supported by the provided context
+- If something isn't clear from the context, acknowledge the uncertainty
+- Focus on the specific question asked`;
+
+        return `${systemContext}${codeContext}${conversationContext}${instructions}`;
     }
 
     async processRepository(req, res) {
@@ -98,7 +114,7 @@ class CodeAnalysisController {
             }
             let conversation = conversationId ? await Conversation.findById(conversationId) : new Conversation({repositoryId : repository._id, userId : userId , messages :[]});
             const context = await this.vectorStoreRepository.findRelevantContext(question,repository._id,conversation._id);
-            const prompt  = this.constructPrompt(question,context);
+            const prompt  = this.constructPrompt(question,context,repository);
             console.log(prompt , "is our promt");
             const result = await this.model.generateContent(prompt);
             const answer = result.response.text();
