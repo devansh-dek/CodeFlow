@@ -10,12 +10,15 @@ const CodeChunkerService = require('./services/CodeChunkerService');
 const DocumentationService = require('./services/DocumentationService');
 const RepositoryService = require('./services/RepositoryService');
 const CodeAnalysisController = require('./controllers/CodeAnalysisController.js');
+const CommitController = require('./controllers/CommitController.js');
 const codeAnalysisRoutes = require('./routes/codeAnalysis');
+const commitRoutes = require('./routes/commits.js');
 const authRoutes = require('./routes/auth.js');
 const authMiddleware = require('./middleware/auth.js')
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const fs = require('fs/promises');
+const CommitService = require('./services/commitService.js');
 
 // Validate environment variables
 const requiredEnvVars = ['GEMINI_API_KEY', 'PORT', 'MONGODB_URI', 'JWT_SECRET'];
@@ -49,20 +52,24 @@ const vectorStoreRepository = new VectorStoreRepository();
 const codeChunkerService = new CodeChunkerService();
 const documentationService = new DocumentationService();
 const repositoryService = new RepositoryService(TEMP_DIR);
-
+const commitService = new CommitService();
 // Initialize controller
 const codeAnalysisController = new CodeAnalysisController(
     repositoryService,
     codeChunkerService,
     vectorStoreRepository,
-    documentationService
+    documentationService,
+    commitService
+);
+const commitController = new CommitController(
+    commitService
 );
 
 // Setup routes
 app.use('/api/auth', authRoutes);
 
 app.use('/api', authMiddleware,codeAnalysisRoutes(codeAnalysisController));
-
+app.use('/api/repo/',authMiddleware,commitRoutes(commitController));
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('Unhandled error:', err);

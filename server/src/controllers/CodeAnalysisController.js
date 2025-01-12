@@ -3,11 +3,12 @@ const Repository = require('../models/Repository');
 const Conversation = require('../models/Conversation');
 
 class CodeAnalysisController {
-    constructor(repositoryService, chunkerService, vectorStoreRepository, documentationService) {
+    constructor(repositoryService, chunkerService, vectorStoreRepository, documentationService,commitService) {
         this.repositoryService = repositoryService;
         this.chunkerService = chunkerService;
         this.vectorStoreRepository = vectorStoreRepository;
         this.documentationService = documentationService;
+        this.commitAnalysisService = commitService; 
         this.model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
         .getGenerativeModel({model : 'gemini-pro'});
     }
@@ -75,6 +76,8 @@ Remember:
 
             const documentation = await this.documentationService.generateDocumentation(allChunks);
             repository.documentation = documentation;
+            const commits = await this.commitAnalysisService.analyzeAllCommits(repoPath, repository._id);
+
             await repository.save();
             
             await this.vectorStoreRepository.addChunks(allChunks, repository._id);
@@ -84,7 +87,8 @@ Remember:
                 repositoryId: repository._id,
                 documentation,
                 totalFiles: files.length,
-                totalChunks: allChunks.length
+                totalChunks: allChunks.length,
+                totalCommits: commits.length
             });
         } catch (error) {
             console.log("erroris ",error);
