@@ -56,8 +56,7 @@ class CodeAnalysisController {
                         commitCount: { $sum: 1 }
                     }
                 }
-            ]).exec(); // Add explicit exec()
-    
+            ]).exec(); 
             const commitCountMap = new Map(
                 commitCounts.map(item => [item._id.toString(), item.commitCount])
             );
