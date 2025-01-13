@@ -29,6 +29,11 @@ for (const envVar of requiredEnvVars) {
         process.exit(1);
     }
 }
+// if (process.env.NODE_ENV === 'development') {
+    // mongoose.set('debug', true);
+// }
+
+
 // using mongoose instead
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log('Connected to MongoDB'))

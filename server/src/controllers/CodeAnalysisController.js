@@ -1,18 +1,92 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Repository = require('../models/Repository');
 const Conversation = require('../models/Conversation');
+const Commit = require('../models/Commits'); // Add this import
 
 class CodeAnalysisController {
     constructor(repositoryService, chunkerService, vectorStoreRepository, documentationService,commitService) {
-        this.repositoryService = repositoryService;
-        this.chunkerService = chunkerService;
-        this.vectorStoreRepository = vectorStoreRepository;
-        this.documentationService = documentationService;
+        this.repositoryService = repositoryService;   
+        this.chunkerService = chunkerService;  
+        this.vectorStoreRepository = vectorStoreRepository;  
+        this.documentationService = documentationService;  
         this.commitAnalysisService = commitService; 
-        this.model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+        this.model = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)  
         .getGenerativeModel({model : 'gemini-pro'});
+        this.getUserRepositories = this.getUserRepositories.bind(this);
+
     }
+    async getUserRepositories(req, res) {
+        try {
+            console.time('getUserRepositories');
+            const userId = req.user.userId;
+            const { page = 1, limit = 10, sort = 'createdAt' } = req.query;
+            
+            console.log(`Fetching repositories for user: ${userId}, page: ${page}, limit: ${limit}`);
     
+            const skip = (parseInt(page) - 1) * parseInt(limit);
+            const repositories = await Repository.find(
+                { user: userId },
+                {
+                    title: 1,
+                    repoUrl: 1,
+                    createdAt: 1,
+                    'documentation.overview': 1
+                }
+            )
+            .lean()
+            .sort({ [sort]: sort === 'title' ? 1 : -1 })
+            .skip(skip)
+            .limit(parseInt(limit))
+            .exec(); // Add explicit exec()
+    
+            console.log(`Found ${repositories.length} repositories`);
+    
+            const total = await Repository.countDocuments({ user: userId });
+    
+            const repositoryIds = repositories.map(repo => repo._id);
+            const commitCounts = await Commit.aggregate([
+                {
+                    $match: {
+                        repositoryId: { $in: repositoryIds }
+                    }
+                },
+                {
+                    $group: {
+                        _id: '$repositoryId',
+                        commitCount: { $sum: 1 }
+                    }
+                }
+            ]).exec(); // Add explicit exec()
+    
+            const commitCountMap = new Map(
+                commitCounts.map(item => [item._id.toString(), item.commitCount])
+            );
+    
+            const repositoriesWithStats = repositories.map(repo => ({
+                ...repo,
+                commitCount: commitCountMap.get(repo._id.toString()) || 0
+            }));
+    
+            console.timeEnd('getUserRepositories');
+    
+            res.json({
+                repositories: repositoriesWithStats,
+                pagination: {
+                    total,
+                    totalPages: Math.ceil(total / parseInt(limit)),
+                    currentPage: parseInt(page),
+                    limit: parseInt(limit)
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching user repositories:', error);
+            res.status(500).json({ 
+                error: 'Failed to fetch repositories',
+                message: error.message 
+            });
+        }
+    }
+
     constructPrompt(question, context, repository) {
         const systemContext = repository.documentation?.overview 
             ? `Project Overview:\n${repository.documentation.overview}\n`
@@ -43,7 +117,7 @@ Remember:
 
         return `${systemContext}${codeContext}${conversationContext}${instructions}`;
     }
-
+   
     async processRepository(req, res) {
         let repoPath = null;
         try {

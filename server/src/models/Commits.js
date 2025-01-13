@@ -64,4 +64,39 @@ const commitSchema = new mongoose.Schema({
         impact: String
     }
 });
+commitSchema.index({ repositoryId: 1 });
 module.exports = mongoose.model('Commit',commitSchema);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
