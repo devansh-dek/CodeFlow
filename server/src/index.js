@@ -69,6 +69,9 @@ const codeAnalysisController = new CodeAnalysisController(
 const commitController = new CommitController(
     commitService
 );
+// import GitHubPRService from './services/githubService.js';
+const GitHubPRService = require('./services/githubService.js')
+app.use('/api', require('./routes/github')(new GitHubPRService(TEMP_DIR)));
 
 // Setup routes
 app.use('/api/auth', authRoutes);
