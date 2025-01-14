@@ -226,16 +226,35 @@ Remember:
     async getRepositoryDocs(req, res) {
         try {
             const { repositoryTitle } = req.params;
+            const {page =1,limit =10} = req.query;
             const userId = req.user.userId;
 
             const repository = await Repository.findOne({ user: userId, title: repositoryTitle });
             if (!repository) {
                 return res.status(404).json({ error: 'Repository not found' });  
             }
+            const commits = await Commit.find(
+                {repoitoryId : repository._id},
+                {documentation : 0 }
+            )
+            .sort({'author.date': -1})
+            .skip((parseInt(page) - 1) * parseInt(limit))
+                .limit(parseInt(limit));
 
-            res.json({
-                documentation: repository.documentation
-            });
+                const totalCommits = await Commit.countDocuments({ repositoryId: repository._id });
+
+                res.json({
+                    documentation: repository.documentation,
+                    commits: {
+                        data: commits,
+                        pagination: {
+                            total: totalCommits,
+                            totalPages: Math.ceil(totalCommits / parseInt(limit)),
+                            currentPage: parseInt(page),
+                            limit: parseInt(limit)
+                        }
+                    }
+                });
         } catch (error) {
             res.status(500).json({
                 error: 'Error fetching documentation',
