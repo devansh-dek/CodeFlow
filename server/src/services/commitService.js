@@ -4,6 +4,10 @@ const { parsePatch } = require('diff');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const Commit = require('../models/Commits')
 
+
+
+
+
 class CommitService {
     constructor(documentationsService) {
         this.documentationService = documentationsService;
@@ -19,47 +23,79 @@ class CommitService {
             const logResult = await git.log();
             const commits = [];
             
-            for (const commitInfo of logResult.all) {
-                try {
-                    console.log(`Processing commit ${commitInfo.hash}`);
-                    
-                    // Get diff for this commit
-                    const diff = await git.show([
-                        commitInfo.hash,
-                        '--pretty=format:""',
-                        '--patch'
-                    ]);
-
-                    // Parse the diff first to get files
-                    const files = await this.parseGitDiff(diff);
-                    
-                    // Calculate stats after we have the files
-                    const stats = this.calculateStats(files);
-                    
-                    const commit = new Commit({
-                        repositoryId,
-                        sha: commitInfo.hash,
-                        parentSha: commitInfo.parent,
-                        message: commitInfo.message,
-                        author: {
-                            name: commitInfo.author_name,
-                            email: commitInfo.author_email,
-                            date: commitInfo.date
-                        },
-                        stats,
-                        files
-                    });
-                    
-                    await commit.save();
-                    commits.push(commit);
-                } catch (error) {
-                    console.error(`Error processing commit ${commitInfo.hash}:`, error);
-                }
+            // Process commits in smaller batches to prevent memory issues
+            const batchSize = 10;
+            for (let i = 0; i < logResult.all.length; i += batchSize) {
+                const batch = logResult.all.slice(i, i + batchSize);
+                
+                // Process batch concurrently with limit
+                const batchPromises = batch.map(commitInfo => 
+                    this.processCommit(git, commitInfo, repositoryId)
+                        .catch(error => {
+                            console.error(`Error processing commit ${commitInfo.hash}:`, error);
+                            return null; // Return null for failed commits
+                        })
+                );
+                
+                const batchResults = await Promise.all(batchPromises);
+                commits.push(...batchResults.filter(Boolean)); // Filter out failed commits
+                
+                // Add a small delay between batches to prevent overwhelming the system
+                await new Promise(resolve => setTimeout(resolve, 1000));
             }
             
             return commits;
         } catch (error) {
             console.error("Error in analyzeAllCommits:", error);
+            throw error;
+        }
+    }
+    async processCommit(git, commitInfo, repositoryId) {
+        console.log(`Processing commit ${commitInfo.hash}`);
+        
+        try {
+            // Set timeout for git show command
+            const timeoutMs = 30000; // 30 seconds
+            const diff = await Promise.race([
+                git.show([
+                    commitInfo.hash,
+                    '--pretty=format:""',
+                    '--patch'
+                ]),
+                new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Git show timeout')), timeoutMs)
+                )
+            ]);
+    
+            // Parse the diff with error handling
+            const files = await this.parseGitDiff(diff);
+            if (!files || !files.length) {
+                console.log(`No files found for commit ${commitInfo.hash}`);
+                return null;
+            }
+            
+            const stats = this.calculateStats(files);
+            
+            const commit = new Commit({
+                repositoryId,
+                sha: commitInfo.hash,
+                parentSha: commitInfo.parent,
+                message: commitInfo.message,
+                author: {
+                    name: commitInfo.author_name,
+                    email: commitInfo.author_email,
+                    date: commitInfo.date
+                },
+                stats,
+                files
+            });
+            
+            await commit.save();
+            return commit;
+        } catch (error) {
+            if (error.message === 'Git show timeout') {
+                console.error(`Timeout processing commit ${commitInfo.hash}`);
+            }
             throw error;
         }
     }
