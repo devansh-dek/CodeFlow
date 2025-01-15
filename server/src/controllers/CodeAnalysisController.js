@@ -233,10 +233,12 @@ Remember:
             if (!repository) {
                 return res.status(404).json({ error: 'Repository not found' });  
             }
+            console.log(repository._id,"is our repository ");
             const commits = await Commit.find(
-                {repoitoryId : repository._id},
-                {documentation : 0 }
+                {repositoryId : repository._id},
+                {documentation: 0} 
             )
+            .select('-files -documentation')
             .sort({'author.date': -1})
             .skip((parseInt(page) - 1) * parseInt(limit))
                 .limit(parseInt(limit));
