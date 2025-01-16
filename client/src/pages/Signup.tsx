@@ -1,3 +1,4 @@
+import axiosConfig from "@/api/axiosConfig";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
@@ -5,10 +6,29 @@ const Signup = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordValid, setPasswordValid] = useState(true);
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
 
   const toggleShowPassword = () => {
     setShowPassword((prev) => !prev);
   };
+
+  async function signup() {
+    try {
+      const response = await axiosConfig.post(
+        "/api/auth/register",
+        JSON.stringify({ email, password }),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          withCredentials: true,
+        }
+      );
+      console.log(response.data);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   useEffect(() => {
     if (password.length >= 1 && password.length < 8) {
@@ -42,6 +62,10 @@ const Signup = () => {
           <input
             type="text"
             id="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+            }}
             className="bg-transparent py-1 w-full focus:outline-none text-xs text-white"
           />
         </div>
@@ -89,15 +113,18 @@ const Signup = () => {
           Minimum length is 8 characters
         </div>
       </div>
-      <button className="bg-[#7d75af] hover:bg-[#a39ada] py-2 mt-5 flex items-center justify-center rounded-lg gap-5 text-zinc-900 font-semibold text-sm">
+      <button
+        onClick={signup}
+        className="bg-[#7d75af] hover:bg-[#a39ada] py-2 mt-5 flex items-center justify-center rounded-lg gap-5 text-zinc-900 font-semibold text-sm"
+      >
         Sign up
       </button>
       <div className="text-xs text-white text-center">
         Already have an account?{" "}
-        <Link to='/login'>
-        <span className="text-[#7d75af] cursor-pointer hover:underline">
-          Login
-        </span>
+        <Link to="/login">
+          <span className="text-[#7d75af] cursor-pointer hover:underline">
+            Login
+          </span>
         </Link>
       </div>
     </div>

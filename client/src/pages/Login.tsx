@@ -1,12 +1,33 @@
+import axiosConfig from "@/api/axiosConfig";
 import { useState } from "react";
 import { Link } from "react-router";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
 
   const toggleShowPassword = () => {
     setShowPassword((prev) => !prev);
   };
+
+  async function login() {
+    try {
+      const response = await axiosConfig.post(
+        "/api/auth/login",
+        JSON.stringify({ email, password }),
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+          withCredentials: true,
+        }
+      );
+      console.log(response.data);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5 mt-5 justify-center">
@@ -19,6 +40,8 @@ const Login = () => {
           <input
             type="text"
             id="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             className="bg-transparent py-1 w-full focus:outline-none text-xs text-white"
           />
         </div>
@@ -32,6 +55,8 @@ const Login = () => {
           <input
             type={showPassword ? "text" : "password"}
             id="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
             className="bg-transparent py-1 w-full focus:outline-none text-xs text-white"
           />
           {showPassword ? (
@@ -51,12 +76,15 @@ const Login = () => {
           )}
         </div>
       </div>
-      <button className="bg-[#7d75af] hover:bg-[#a39ada] py-2 mt-5 flex items-center justify-center rounded-lg gap-5 text-zinc-900 font-semibold text-sm">
+      <button
+        onClick={login}
+        className="bg-[#7d75af] hover:bg-[#a39ada] py-2 mt-5 flex items-center justify-center rounded-lg gap-5 text-zinc-900 font-semibold text-sm"
+      >
         Login
       </button>
       <div className="text-xs text-white text-center">
         Don't have an account?{" "}
-        <Link to='/signup'>
+        <Link to="/signup">
           <span className="text-[#7d75af] cursor-pointer hover:underline">
             Sign up
           </span>
