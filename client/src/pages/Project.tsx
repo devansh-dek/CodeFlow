@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, GitBranch } from 'lucide-react';
 import { projects } from '@/utils/constants';
 import mermaid from 'mermaid';
+import ChatBox from '@/components/Chatbox';
 
 interface Commit {
   message: string;
@@ -91,6 +92,7 @@ const Project = () => {
             <h1 className="text-2xl font-bold text-white">{project.name}</h1>
             <p className="text-zinc-400">{project.repo_link.split('/')[4]}</p>
           </div>
+          <ChatBox />
         </div>
       </div>
 
